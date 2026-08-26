@@ -1,58 +1,29 @@
-# Mi primera aplicación Flutter Web - FrutiApp
+# FrutiApp Web
 
-Laboratorio de IF0009 – Desarrollo de Software IV.
+Aplicación desarrollada en Flutter Web para el curso IF0009 - Desarrollo de Software IV.
+
+## Descripción
+
+FrutiApp Web cuenta con una pantalla de inicio de sesión y una pantalla para mostrar un catálogo de productos.
+
+El inicio de sesión valida el correo electrónico y la contraseña antes de permitir el acceso a la pantalla principal.
+
+Los productos se obtienen mediante una petición HTTP al servicio JSONPlaceholder y la información recibida se procesa en formato JSON.
 
 ## Funcionalidades
 
-- Login con correo, contraseña y opción Recordarme.
-- Validación del correo:
-  - no vacío
-  - contiene `@`
-  - contiene `.`
-- Validación de contraseña de mínimo 6 caracteres.
-- Navegación Login → Home.
-- Consumo GET de JSONPlaceholder.
-- Conversión `title → nombre` e `id → precio`, con `precio = id * 100`.
-- Estado de carga con `CircularProgressIndicator`.
-- Manejo de errores y botón para reintentar.
-- Catálogo con `ListView.builder`, `Card`, `ListTile`.
-- Uso explícito de `Container`, `Column`, `Row`, `Padding`, `SizedBox`, `Expanded` y `SingleChildScrollView`.
-- Diseño adaptable mediante `LayoutBuilder`.
-- Título web configurado como `FrutiApp Web`.
+- Formulario de inicio de sesión.
+- Validación de correo electrónico.
+- Validación de contraseña.
+- Opción "Recordarme".
+- Navegación entre pantallas.
+- Consumo de datos mediante HTTP.
+- Lectura de información JSON.
+- Lista de productos.
+- Manejo de carga y errores.
 
-## Ejecutar
+## Ejecutar el proyecto
 
 ```bash
 flutter pub get
 flutter run -d chrome
-```
-
-## Generar producción
-
-```bash
-flutter build web
-```
-
-El resultado queda en `build/web`.
-
-Para probarlo con un servidor HTTP:
-
-```bash
-cd build/web
-python3 -m http.server 8000
-```
-
-Luego abrir:
-
-`http://localhost:8000`
-
-## Git
-
-```bash
-git init
-git add .
-git commit -m "Laboratorio 1 - FrutiApp Web"
-git branch -M main
-git remote add origin URL_DE_TU_REPOSITORIO
-git push -u origin main
-```
