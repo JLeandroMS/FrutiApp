@@ -1,29 +1,33 @@
-# FrutiApp Web
+# Control de Acceso Evolutivo v2
 
-Aplicación desarrollada en Flutter Web para el curso IF0009 - Desarrollo de Software IV.
+Proyecto desarrollado para el curso IF0009 - Desarrollo de Software IV.
 
 ## Descripción
 
-FrutiApp Web cuenta con una pantalla de inicio de sesión y una pantalla para mostrar un catálogo de productos.
+Aplicación Flutter Web que implementa un control de acceso con:
 
-El inicio de sesión valida el correo electrónico y la contraseña antes de permitir el acceso a la pantalla principal.
+- Validación de usuario y contraseña.
+- Opción para mostrar u ocultar la contraseña.
+- Opción "Recordarme" utilizando SharedPreferences.
+- Registro de intentos de acceso.
+- Visualización de bitácora.
+- Exportación de bitácora en formato JSON.
+- Importación de archivos JSON.
+- Manejo de errores de archivos inválidos.
 
-Los productos se obtienen mediante una petición HTTP al servicio JSONPlaceholder y la información recibida se procesa en formato JSON.
+## Tecnologías
 
-## Funcionalidades
+- Flutter Web
+- Dart
+- SharedPreferences
+- JSON
+- file_selector
+- package:web
+- Git
 
-- Formulario de inicio de sesión.
-- Validación de correo electrónico.
-- Validación de contraseña.
-- Opción "Recordarme".
-- Navegación entre pantallas.
-- Consumo de datos mediante HTTP.
-- Lectura de información JSON.
-- Lista de productos.
-- Manejo de carga y errores.
+## Credenciales de prueba
 
-## Ejecutar el proyecto
+Usuario:
 
-```bash
-flutter pub get
-flutter run -d chrome
+```text
+admin@frutiapp.com
