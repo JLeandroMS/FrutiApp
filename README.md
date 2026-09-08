@@ -27,7 +27,8 @@ Aplicación Flutter Web que implementa un control de acceso con:
 
 ## Credenciales de prueba
 
-Usuario:
+Usuario: admin@frutiapp.com
+contrasena: 123456
 
 ```text
 admin@frutiapp.com
