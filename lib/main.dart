@@ -3,6 +3,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'models/access_record.dart';
+import 'services/access_log_service.dart';
+
+import 'package:file_selector/file_selector.dart';
+import 'package:web/web.dart' as web;
+
+final logService = AccessLogService();
+
 void main() {
   runApp(const FrutiApp());
 }
@@ -36,11 +44,29 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
 
+  final _usuarioController = TextEditingController();
+  final _passwordController = TextEditingController();
+
   bool _recordarme = false;
   bool _ocultarContrasena = true;
 
   void _ingresar() {
-    if (_formKey.currentState!.validate()) {
+    final usuario = _usuarioController.text.trim();
+    final password = _passwordController.text;
+
+    final formularioValido = _formKey.currentState!.validate();
+
+    final exitoso = formularioValido;
+
+    logService.add(
+      AccessRecord(
+        usuario: usuario,
+        fechaHora: DateTime.now(),
+        exitoso: exitoso,
+      ),
+    );
+
+    if (formularioValido) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -50,9 +76,35 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  void _abrirBitacora() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const BitacoraPage(),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _usuarioController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('FrutiApp'),
+        actions: [
+          IconButton(
+            tooltip: 'Bitácora',
+            onPressed: _abrirBitacora,
+            icon: const Icon(Icons.history),
+          ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           child: Container(
@@ -70,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                       const Icon(
                         Icons.local_grocery_store,
                         size: 70,
-                        color: Colors.green,
+                        color: Colors.blue,
                       ),
                       const SizedBox(height: 10),
                       const Text(
@@ -82,6 +134,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 25),
                       TextFormField(
+                        controller: _usuarioController,
                         decoration: const InputDecoration(
                           labelText: 'Correo electrónico',
                           prefixIcon: Icon(Icons.email),
@@ -101,6 +154,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 20),
                       TextFormField(
+                        controller: _passwordController,
                         obscureText: _ocultarContrasena,
                         decoration: InputDecoration(
                           labelText: 'Contraseña',
@@ -154,12 +208,193 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _abrirBitacora,
+                          icon: const Icon(Icons.history),
+                          label: const Text(
+                            'Ver bitácora',
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class BitacoraPage extends StatefulWidget {
+  const BitacoraPage({super.key});
+
+  @override
+  State<BitacoraPage> createState() => _BitacoraPageState();
+}
+
+class _BitacoraPageState extends State<BitacoraPage> {
+  Future<void> importarBitacora() async {
+    const typeGroup = XTypeGroup(
+      label: 'JSON',
+      extensions: ['json'],
+      mimeTypes: ['application/json'],
+    );
+
+    final XFile? file = await openFile(
+      acceptedTypeGroups: [typeGroup],
+    );
+
+    if (file == null) return;
+
+    try {
+      final contenido = await file.readAsString();
+
+      logService.importJson(contenido);
+
+      setState(() {});
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bitácora importada correctamente'),
+        ),
+      );
+    } on FormatException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('JSON inválido: ${e.message}'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo leer el archivo'),
+        ),
+      );
+    }
+  }
+
+  void descargarJson(String contenido) {
+    final base64 = base64Encode(
+      utf8.encode(contenido),
+    );
+
+    web.HTMLAnchorElement()
+      ..href = 'data:application/json;base64,$base64'
+      ..setAttribute(
+        'download',
+        'bitacora_accesos.json',
+      )
+      ..click();
+  }
+
+  void exportarBitacora() {
+    descargarJson(
+      logService.exportJson(),
+    );
+  }
+
+  void limpiarBitacora() {
+    setState(() {
+      logService.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Bitácora limpiada'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final registros = logService.records;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bitácora de accesos'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: exportarBitacora,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Exportar JSON'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: importarBitacora,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Importar JSON'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: limpiarBitacora,
+                  icon: const Icon(Icons.delete),
+                  label: const Text('Limpiar'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Total de registros: ${registros.length}',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 15),
+            Expanded(
+              child: registros.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No hay registros en la bitácora',
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: registros.length,
+                      itemBuilder: (context, index) {
+                        final r = registros[index];
+
+                        return Card(
+                          child: ListTile(
+                            leading: Icon(
+                              r.exitoso ? Icons.check_circle : Icons.cancel,
+                              color: r.exitoso ? Colors.green : Colors.red,
+                            ),
+                            title: Text(
+                              r.usuario.isEmpty ? '(sin usuario)' : r.usuario,
+                            ),
+                            subtitle: Text(
+                              r.fechaHora.toString(),
+                            ),
+                            trailing: Text(
+                              r.exitoso ? 'OK' : 'FALLÓ',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );
