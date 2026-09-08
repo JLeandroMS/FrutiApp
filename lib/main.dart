@@ -2,14 +2,15 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-
-import 'models/access_record.dart';
-import 'services/access_log_service.dart';
-
 import 'package:file_selector/file_selector.dart';
 import 'package:web/web.dart' as web;
 
+import 'models/access_record.dart';
+import 'services/access_log_service.dart';
+import 'services/preferences_service.dart';
+
 final logService = AccessLogService();
+final preferencesService = PreferencesService();
 
 void main() {
   runApp(const FrutiApp());
@@ -50,13 +51,65 @@ class _LoginPageState extends State<LoginPage> {
   bool _recordarme = false;
   bool _ocultarContrasena = true;
 
-  void _ingresar() {
+  static const String usuarioCorrecto = 'admin@frutiapp.com';
+  static const String passwordCorrecto = '123456';
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPreferencias();
+  }
+
+  Future<void> _cargarPreferencias() async {
+    final recordar = await preferencesService.obtenerRecordarUsuario();
+
+    final usuario = await preferencesService.obtenerUsuarioRecordado();
+
+    if (!mounted) return;
+
+    setState(() {
+      _recordarme = recordar;
+
+      if (recordar && usuario != null) {
+        _usuarioController.text = usuario;
+      } else {
+        _usuarioController.clear();
+      }
+
+      // La contraseña nunca debe recuperarse.
+      _passwordController.clear();
+    });
+  }
+
+  Future<void> _cambiarRecordarme(bool value) async {
+    setState(() {
+      _recordarme = value;
+    });
+
+    if (!value) {
+      await preferencesService.limpiarUsuarioRecordado();
+    }
+  }
+
+  Future<void> _ingresar() async {
     final usuario = _usuarioController.text.trim();
     final password = _passwordController.text;
 
-    final formularioValido = _formKey.currentState!.validate();
+    final formularioValido = _formKey.currentState?.validate() ?? false;
 
-    final exitoso = formularioValido;
+    if (!formularioValido) {
+      logService.add(
+        AccessRecord(
+          usuario: usuario,
+          fechaHora: DateTime.now(),
+          exitoso: false,
+        ),
+      );
+
+      return;
+    }
+
+    final exitoso = usuario == usuarioCorrecto && password == passwordCorrecto;
 
     logService.add(
       AccessRecord(
@@ -66,11 +119,44 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
 
-    if (formularioValido) {
-      Navigator.push(
+    await preferencesService.guardarPreferencia(
+      recordarUsuario: _recordarme,
+      usuario: usuario,
+    );
+
+    if (!mounted) return;
+
+    if (exitoso) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Acceso autorizado'),
+        ),
+      );
+
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => const HomePage(),
+        ),
+      );
+
+      if (!mounted) return;
+
+      // La contraseña SIEMPRE se elimina al volver al login.
+      _passwordController.clear();
+
+      // El usuario solo permanece si Recordarme está activado.
+      if (!_recordarme) {
+        _usuarioController.clear();
+      }
+
+      setState(() {});
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Acceso rechazado: usuario o contraseña incorrectos',
+          ),
         ),
       );
     }
@@ -135,13 +221,14 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 25),
                       TextFormField(
                         controller: _usuarioController,
+                        autofillHints: const [],
                         decoration: const InputDecoration(
                           labelText: 'Correo electrónico',
                           prefixIcon: Icon(Icons.email),
                           border: OutlineInputBorder(),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
+                          if (value == null || value.trim().isEmpty) {
                             return 'Ingrese el correo';
                           }
 
@@ -156,6 +243,7 @@ class _LoginPageState extends State<LoginPage> {
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _ocultarContrasena,
+                        autofillHints: const [],
                         decoration: InputDecoration(
                           labelText: 'Contraseña',
                           prefixIcon: const Icon(Icons.lock),
@@ -174,7 +262,11 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.length < 6) {
+                          if (value == null || value.isEmpty) {
+                            return 'Ingrese la contraseña';
+                          }
+
+                          if (value.length < 6) {
                             return 'La contraseña debe tener al menos 6 caracteres';
                           }
 
@@ -187,9 +279,9 @@ class _LoginPageState extends State<LoginPage> {
                           Checkbox(
                             value: _recordarme,
                             onChanged: (value) {
-                              setState(() {
-                                _recordarme = value ?? false;
-                              });
+                              _cambiarRecordarme(
+                                value ?? false,
+                              );
                             },
                           ),
                           const Text('Recordarme'),
@@ -263,7 +355,9 @@ class _BitacoraPageState extends State<BitacoraPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Bitácora importada correctamente'),
+          content: Text(
+            'Bitácora importada correctamente',
+          ),
         ),
       );
     } on FormatException catch (e) {
@@ -271,7 +365,9 @@ class _BitacoraPageState extends State<BitacoraPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('JSON inválido: ${e.message}'),
+          content: Text(
+            'JSON inválido: ${e.message}',
+          ),
         ),
       );
     } catch (_) {
@@ -279,7 +375,9 @@ class _BitacoraPageState extends State<BitacoraPage> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No se pudo leer el archivo'),
+          content: Text(
+            'No se pudo leer el archivo',
+          ),
         ),
       );
     }
@@ -312,7 +410,9 @@ class _BitacoraPageState extends State<BitacoraPage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Bitácora limpiada'),
+        content: Text(
+          'Bitácora limpiada',
+        ),
       ),
     );
   }
@@ -323,7 +423,9 @@ class _BitacoraPageState extends State<BitacoraPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bitácora de accesos'),
+        title: const Text(
+          'Bitácora de accesos',
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -335,18 +437,30 @@ class _BitacoraPageState extends State<BitacoraPage> {
               children: [
                 ElevatedButton.icon(
                   onPressed: exportarBitacora,
-                  icon: const Icon(Icons.download),
-                  label: const Text('Exportar JSON'),
+                  icon: const Icon(
+                    Icons.download,
+                  ),
+                  label: const Text(
+                    'Exportar JSON',
+                  ),
                 ),
                 OutlinedButton.icon(
                   onPressed: importarBitacora,
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('Importar JSON'),
+                  icon: const Icon(
+                    Icons.upload_file,
+                  ),
+                  label: const Text(
+                    'Importar JSON',
+                  ),
                 ),
                 OutlinedButton.icon(
                   onPressed: limpiarBitacora,
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Limpiar'),
+                  icon: const Icon(
+                    Icons.delete,
+                  ),
+                  label: const Text(
+                    'Limpiar',
+                  ),
                 ),
               ],
             ),
@@ -384,7 +498,7 @@ class _BitacoraPageState extends State<BitacoraPage> {
                               r.fechaHora.toString(),
                             ),
                             trailing: Text(
-                              r.exitoso ? 'OK' : 'FALLÓ',
+                              r.exitoso ? 'AUTORIZADO' : 'RECHAZADO',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -444,20 +558,26 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FrutiApp - Catálogo'),
+        title: const Text(
+          'FrutiApp - Catálogo',
+        ),
         backgroundColor: Colors.green.shade100,
         actions: [
           IconButton(
             tooltip: 'Recargar',
             onPressed: _recargar,
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(
+              Icons.refresh,
+            ),
           ),
           IconButton(
             tooltip: 'Cerrar sesión',
             onPressed: () {
               Navigator.pop(context);
             },
-            icon: const Icon(Icons.logout),
+            icon: const Icon(
+              Icons.logout,
+            ),
           ),
         ],
       ),
@@ -493,7 +613,9 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 15),
                   ElevatedButton(
                     onPressed: _recargar,
-                    child: const Text('Reintentar'),
+                    child: const Text(
+                      'Reintentar',
+                    ),
                   ),
                 ],
               ),
